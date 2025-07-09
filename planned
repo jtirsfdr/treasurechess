@@ -1,0 +1,48 @@
+A Chess practice client that doesn't exist yet
+
+Planned Features 
+
+Spaced repetition tactic / position scheduler
+
+Annotations
+
+Guess eval as you walk through a game (blunder checking + tactic resolution)
+
+Practice tactics with full line instead of per move
+(Specify minimum centipawn loss for you + maximum centipawn gain for opponent over best move)
+
+Practice positions with suboptimal movement (specify max eval loss)
+
+Report centipawn change + move ranking for line / practice line history 
+
+Optional forced text input for moves (for practicing algebraic notation)
+
+Lines of past games against engines
+
+Practice algebraic notation, colors, diagonals, and knight squares.
+
+Hide pieces on the fly + Automatic hiding of pieces for x moves on loop
+(Blindfolded practice)
+
+See multiple lines until evaluation delta resolution
+
+(Basically see all lines until a blundered piece is taken) 
+(make sure to allow extension for lines (in case full idea doesn't play out)
+
+Line generation filter 
+{
+Show 10 moves or until EDR
+Black plays best move or moves that are under +0.3 eval compared to best
+White plays best move or moves that are under -1.0 eval compared to best
+White net eval loss shouldn't exceed -2.0 eval
+Sort lines by minimum moves to EDR
+}
+
+Puzzle generator (for databases + your own games)
+
+Lichess, chess.com, & database integration
+
+Lichess puzzle integration (practice full line for puzzle)
+
+Poor position puzzles
+
