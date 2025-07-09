@@ -8,26 +8,17 @@ import "core:strings"
 
 
 main :: proc() {
-	init_uielems()
 //	-- Raylib Init
 	rl.SetConfigFlags({ .VSYNC_HINT, .WINDOW_RESIZABLE })
 	rl.InitWindow(640, 480, "treasure chess")
 	rl.InitAudioDevice()
 	rl.SetTargetFPS(480)
 	font = rl.LoadFont("pixelplay.png")
-	winx = rl.GetScreenWidth()
-	winy = rl.GetScreenHeight()
-	rl.SetWindowOpacity(0.9)
-	winxcstr = itocstr(winx)
-	winycstr = itocstr(winy)
-	mousepos : rl.Vector2
-	mousecell : rl.Vector2
-//	presses := 0
-	active := 0
-// 	rl.Rectangle = {x, y, w, h}
+	init_uielems()
 //	-- Draw loop
 	for !rl.WindowShouldClose() {
-		windowrec = {0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
+		//get window x y width height
+		ui_elems[Elements.WINDOW].dimensions = rl.Rectangle{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
 		rl.BeginDrawing()
 		rl.ClearBackground(current_palette.windowbg)
 		if rl.IsCursorOnScreen(){
@@ -37,6 +28,7 @@ main :: proc() {
 		}
 		check_aspect_ratio()
 		draw_uies()
+		rl.DrawFPS(0,0)
 		rl.EndDrawing()
 		
 //		-- Temp input diagnosing
@@ -68,13 +60,30 @@ debug :: proc() {
 	*/
 }
 draw_uies :: proc() {
+	/*
+	TODO
+	Account for siblings in calculation
+	Logic for rest of parameters
+	Text alignment
+	Fix struct types
+	Pass strings through to render queue
+	Padding
+
+	   */
 	for i in ui_elems{
-		if i.parent == 0 {
+		#partial switch i.type {
+		case Type.WINDOW:
+		case Type.BOX:
+			parent := ui_elems[i.parent].dimensions
 			rec := rl.Rectangle{
-				0, 0, windowrec.width * i.xratio, windowrec.height * i.yratio
+				parent.x + (parent.width - parent.width * i.xratio)/2, //align to center for now, will do control flow later
+				parent.y,
+				parent.width * i.xratio,
+				parent.height * i.yratio
 			}
 			rl.DrawRectangleRec(rec, current_palette.bg)
 			rl.DrawRectangleLinesEx(rec, 1.0, current_palette.border)
+			rl.DrawTextEx(font, "Treasure Chess", {rec.x, rec.y}, i.font_size, 1, current_palette.text_color)
 		}
 	}
 }
@@ -93,7 +102,7 @@ check_aspect_ratio :: proc() {
 	} else {
 		rl.DrawText("ver", winx-50, winy-50, 16, rl.WHITE)
 	}
-	rl.DrawTextEx(font, winxcstr, {100, 100}, font_size, 1, rl.WHITE)
+	rl.DrawTextEx(font, winxcstr, {100, 100}, default_font_size, 1, rl.WHITE)
 }
 /*
 IMPLEMENT
