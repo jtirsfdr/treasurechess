@@ -12,6 +12,8 @@ Align :: enum {
 	LEFT,
 	CENTER,
 	RIGHT,
+	TOP = LEFT, //not necessary
+	BOTTOM = RIGHT,
 }
 
 Elements :: enum {
@@ -29,25 +31,26 @@ Uie :: struct {
 	type: Type,
 	parent: Elements,
 	siblings: [dynamic]Elements,
-	text_align: f32,
-	mask: f32,
+	xtxtalign: Align,
+	ytxtalign: Align,
+	mask: f32, //does nothing
 	font_size: f32,
-	innerpadding: f32,
-	outerpadding: f32,
-	xfixed: f32, //0 = not fixed
+	innerpadding: f32, //does nothing
+	outerpadding: f32, //does nothing
+	xfixed: f32, 
 	xmax: f32,
 	xmin: f32,
-	xratio: f32,
+	xratio: f32, 
 	xalign: Align,
-	xorder: f32,
+	xorder: f32, //does nothing
+	yfixed: f32,
 	ymax: f32,
 	ymin: f32,
 	yratio: f32,
-	yalign: f32,
-	yorder: f32,
-	yfixed: f32,
-	resizable: bool,
-	visible: bool,
+	yalign: Align,
+	yorder: f32, //does nothing
+	resizable: bool, //does nothing
+	visible: bool, //does nothing
 	dimensions: rl.Rectangle,
 	text: string,
 }
@@ -62,7 +65,7 @@ winx: i32
 winy: i32
 winxcstr: cstring
 winycstr: cstring
-default_font_size := f32(33)
+default_font_size := f32(17*2)
 font: rl.Font
 ui_elems: [Elements]Uie
 palettes: [ColorPalettes]Palette
@@ -79,23 +82,33 @@ init_uielems :: proc() {
 	}
 	ui_elems[.WINDOW] = {
 		type = .WINDOW,
-		dimensions = rl.Rectangle{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())},
 	}
 	ui_elems[.TITLE_BOX] = {
 		type = .BOX,
 		parent = .WINDOW,
-		xratio = 0.9,
+		xratio = 0.1,
 		xalign = .CENTER,
-		yratio = 0.05,
+		yalign = .TOP,
+		ytxtalign = .CENTER,
+		xtxtalign = .CENTER,
+		yratio = 0.03,
 		text = "Treasure Chess",
-		font_size = default_font_size,
 	}
 	ui_elems[.TITLE_MENU] = {
 		type = .BOX,
 		parent = .TITLE_BOX,
 	}
-	for ui, i in ui_elems {
-		//for printfs
+	for uie, i in ui_elems {
+		//configuring defaults
+		if uie.ymax == 0 {
+			ui_elems[i].ymax = 65000
+		}
+		if uie.xmax == 0 {
+			ui_elems[i].xmax = 65000
+		}
+		if uie.font_size == 0 {
+			ui_elems[i].font_size = default_font_size
+		}
 		ui_elems[i].id = Elements(i)
 	}
 	init_uie_siblings()

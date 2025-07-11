@@ -9,10 +9,10 @@ import "core:strings"
 
 main :: proc() {
 //	-- Raylib Init
-//	rl.SetConfigFlags({ .VSYNC_HINT, .WINDOW_RESIZABLE })
+	rl.SetConfigFlags({ .VSYNC_HINT, .WINDOW_RESIZABLE })
 	rl.InitWindow(640, 480, "treasure chess")
 	rl.InitAudioDevice()
-//	rl.SetTargetFPS(480)
+	rl.SetTargetFPS(480)
 	font = rl.LoadFont("pixelplay.png")
 	init_uielems()
 //	-- Draw loop
@@ -43,12 +43,18 @@ draw_uies :: proc() {
 		#partial switch uie.type {
 		case .WINDOW:
 		case .BOX:
+//			-- Calculate box xywh
 			parent := ui_elems[uie.parent].dimensions
-			rec := rl.Rectangle{
-				0, 
-				parent.y,
-				parent.width * uie.xratio,
-				parent.height * uie.yratio
+			rec := rl.Rectangle{}
+			if uie.xfixed == 0 {
+				rec.width = clamp(parent.width * uie.xratio, uie.xmin, uie.xmax)
+			} else {
+				rec.width = uie.xfixed
+			}
+			if uie.yfixed == 0 {
+				rec.height = clamp(parent.height * uie.yratio, uie.ymin, uie.ymax)
+			} else {
+				rec.height = uie.yfixed
 			}
 			switch uie.xalign {
 			case .LEFT:
@@ -58,9 +64,40 @@ draw_uies :: proc() {
 			case .RIGHT:
 				rec.x = parent.x + (parent.width - parent.width * uie.xratio)	
 			}
+			switch uie.yalign {
+			case .TOP:
+				rec.y = parent.y
+			case .CENTER:
+				rec.y = parent.y + (parent.height - parent.height * uie.yratio)/2
+			case .BOTTOM:
+				rec.y = parent.y + (parent.height - parent.height * uie.yratio)
+			}
+//			-- Calculate text xywh
+			ctext := strings.unsafe_string_to_cstring(uie.text)
+			text_size := rl.MeasureTextEx(font, ctext, uie.font_size, 1)
+			text_size.y = default_font_size * 0.8 //y size from MeasureTextEx is wrong (maybe?)
+			txt: rl.Vector2
+			switch uie.ytxtalign {
+			case .TOP:
+				txt.y = rec.y 
+			case .CENTER:
+				txt.y = rec.y + (rec.height - (text_size.y))/2
+			case .BOTTOM:
+				txt.y = rec.y + (rec.height - (text_size.y))
+			}
+			switch uie.xtxtalign {
+			case .TOP:
+				txt.x = rec.x 
+			case .CENTER:
+				txt.x = rec.x + (rec.width - (text_size.x))/2
+			case .BOTTOM:
+				txt.x = rec.x + (rec.width - (text_size.x))
+			}
+//			-- Draw
 			rl.DrawRectangleRec(rec, current_palette.bg)
+			rl.DrawTextEx(font, ctext, {txt.x, txt.y}, uie.font_size, 1, current_palette.text_color)
 			rl.DrawRectangleLinesEx(rec, 1.0, current_palette.border)
-			rl.DrawTextEx(font, "Treasure Chess", {rec.x, rec.y}, uie.font_size, 1, current_palette.text_color)
+			ui_elems[i].dimensions = rec
 		}
 	}
 }
@@ -121,6 +158,8 @@ debug :: proc() {
 		fmt.println(ui_elems[i])
 		fmt.println("---")
 	}
+	fmt.println(ui_elems[.WINDOW].dimensions)
+	fmt.println(ui_elems[.WINDOW].xmax)
 
 }
 /*
