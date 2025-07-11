@@ -9,55 +9,24 @@ import "core:strings"
 
 main :: proc() {
 //	-- Raylib Init
-	rl.SetConfigFlags({ .VSYNC_HINT, .WINDOW_RESIZABLE })
+//	rl.SetConfigFlags({ .VSYNC_HINT, .WINDOW_RESIZABLE })
 	rl.InitWindow(640, 480, "treasure chess")
 	rl.InitAudioDevice()
-	rl.SetTargetFPS(480)
+//	rl.SetTargetFPS(480)
 	font = rl.LoadFont("pixelplay.png")
 	init_uielems()
 //	-- Draw loop
 	for !rl.WindowShouldClose() {
 		//get window x y width height
-		ui_elems[Elements.WINDOW].dimensions = rl.Rectangle{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
+		ui_elems[.WINDOW].dimensions = rl.Rectangle{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
 		rl.BeginDrawing()
 		rl.ClearBackground(current_palette.windowbg)
-		if rl.IsCursorOnScreen(){
-			rl.SetWindowOpacity(1.0)
-		} else {
-			rl.SetWindowOpacity(0.9)
-		}
+		change_opacity()
 		check_aspect_ratio()
 		draw_uies()
 		rl.DrawFPS(0,0)
 		rl.EndDrawing()
-		
-//		-- Temp input diagnosing
-		/*
-		pbuf: [32]byte
-		pnum := strconv.itoa(pbuf[:], presses)
-		s := []string{"Presses ", pnum}
-		pressstr := strings.concatenate(s[:])
-		rl.DrawTextEx(font, strings.unsafe_string_to_cstring(pressstr), {100, 400}, font_size, 1, rl.WHITE)
-		mousepos = rl.GetMousePosition()
-		if rl.IsMouseButtonDown(.LEFT) {
-			if rl.IsMouseButtonPressed(.LEFT) {
-				rl.DrawTextEx(font, "MousePressed", {100, 200}, font_size, 1, rl.WHITE)
-				presses += 1
-			}
-			rl.DrawTextEx(font, "MouseDown", {100, 300}, font_size, 1, rl.WHITE)
 		}
-		*/
-
-//		free_all(context.temp_allocator)
-	}
-}
-@(fini)
-debug :: proc() {
-	/*
-	for i in ui_elems {
-		fmt.print(i.type)
-	}
-	*/
 }
 draw_uies :: proc() {
 	/*
@@ -69,27 +38,63 @@ draw_uies :: proc() {
 	Pass strings through to render queue
 	Padding
 
-	   */
-	for i in ui_elems{
-		#partial switch i.type {
-		case Type.WINDOW:
-		case Type.BOX:
-			parent := ui_elems[i.parent].dimensions
+	*/
+	for uie, i in ui_elems{
+		#partial switch uie.type {
+		case .WINDOW:
+		case .BOX:
+			parent := ui_elems[uie.parent].dimensions
 			rec := rl.Rectangle{
-				parent.x + (parent.width - parent.width * i.xratio)/2, //align to center for now, will do control flow later
+				0, 
 				parent.y,
-				parent.width * i.xratio,
-				parent.height * i.yratio
+				parent.width * uie.xratio,
+				parent.height * uie.yratio
+			}
+			switch uie.xalign {
+			case .LEFT:
+				rec.x = parent.x
+			case .CENTER:
+				rec.x = parent.x + (parent.width - parent.width * uie.xratio)/2
+			case .RIGHT:
+				rec.x = parent.x + (parent.width - parent.width * uie.xratio)	
 			}
 			rl.DrawRectangleRec(rec, current_palette.bg)
 			rl.DrawRectangleLinesEx(rec, 1.0, current_palette.border)
-			rl.DrawTextEx(font, "Treasure Chess", {rec.x, rec.y}, i.font_size, 1, current_palette.text_color)
+			rl.DrawTextEx(font, "Treasure Chess", {rec.x, rec.y}, uie.font_size, 1, current_palette.text_color)
 		}
 	}
 }
-DrawTextF :: proc() {
-	//allow for printf input on drawtext functions + autofont
+
+init_uie_siblings :: proc() {
+	siblings_of_parents = make([][dynamic]Elements, len(Elements))
+	for ui, i in ui_elems{
+		append(&siblings_of_parents[ui.parent], Elements(i))
+	}
+	for ui, i in ui_elems {
+		ui_elems[i].siblings = siblings_of_parents[ui.parent]
+	}
 }
+
+update_uie_siblings :: proc() {
+	for i in 0..<len(siblings_of_parents) {
+		clear(&siblings_of_parents[i])
+	}
+	for ui, i in ui_elems{
+		append(&siblings_of_parents[ui.parent], Elements(i))
+		}
+	for ui, i in ui_elems {
+		ui_elems[i].siblings = siblings_of_parents[ui.parent]
+	}
+}
+
+change_opacity :: proc() {
+	if rl.IsCursorOnScreen(){
+		rl.SetWindowOpacity(1.0)
+	} else {
+		rl.SetWindowOpacity(0.9)
+	}
+}
+
 check_aspect_ratio :: proc() {
 	if rl.IsWindowResized() {
 		winx = rl.GetScreenWidth()
@@ -103,6 +108,20 @@ check_aspect_ratio :: proc() {
 		rl.DrawText("ver", winx-50, winy-50, 16, rl.WHITE)
 	}
 	rl.DrawTextEx(font, winxcstr, {100, 100}, default_font_size, 1, rl.WHITE)
+}
+
+draw_text :: proc() {
+	//allow for printf input on drawtext functions + autofont
+}
+
+@(fini)
+debug :: proc() {
+	fmt.println("---")
+	for ui, i in ui_elems{
+		fmt.println(ui_elems[i])
+		fmt.println("---")
+	}
+
 }
 /*
 IMPLEMENT
