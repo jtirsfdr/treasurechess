@@ -94,7 +94,13 @@ draw_uies :: proc() {
 				txt.x = rec.x + (rec.width - (text_size.x))
 			}
 //			-- Draw
-			rl.DrawRectangleRec(rec, current_palette.bg)
+			if uie.clickable {
+				if rl.IsMouseButtonDown(.LEFT) {
+					rl.DrawRectangleRec(rec, current_palette.bg_selected)
+				} else {
+					rl.DrawRectangleRec(rec, current_palette.bg)
+				}
+			}
 			rl.DrawTextEx(font, ctext, {txt.x, txt.y}, uie.font_size, 1, current_palette.text_color)
 			rl.DrawRectangleLinesEx(rec, 1.0, current_palette.border)
 			ui_elems[i].dimensions = rec

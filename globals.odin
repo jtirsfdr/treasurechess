@@ -51,12 +51,15 @@ Uie :: struct {
 	yorder: f32, //does nothing
 	resizable: bool, //does nothing
 	visible: bool, //does nothing
+	draggable: bool, //does nothing
+	clickable: bool, //does nothing
 	dimensions: rl.Rectangle,
 	text: string,
 }
 Palette :: struct {
 	windowbg: rl.Color,
 	bg: rl.Color,
+	bg_selected: rl.Color,
 	border: rl.Color,
 	text_color: rl.Color,
 }
@@ -77,6 +80,7 @@ init_uielems :: proc() {
 	palettes[.DARK] = {
 		windowbg = rl.Color{50, 50, 50, 255},
 		bg = rl.Color{100, 100, 100, 255},
+		bg_selected = rl.Color{80, 80, 80, 255},
 		border = rl.Color{180, 180, 180, 255},
 		text_color = rl.Color{255, 255, 255, 255},
 	}
@@ -91,6 +95,7 @@ init_uielems :: proc() {
 		yalign = .TOP,
 		ytxtalign = .CENTER,
 		xtxtalign = .CENTER,
+		clickable = true,
 		yratio = 0.03,
 		text = "Treasure Chess",
 	}
