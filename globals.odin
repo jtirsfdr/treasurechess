@@ -24,13 +24,14 @@ Elements :: enum {
 }
 
 ColorPalettes :: enum {
-	DARK
+	DARK,
+	LIGHT,
 }
 Uie :: struct {
 	id: Elements,
 	type: Type,
 	parent: Elements,
-	siblings: [dynamic]Elements,
+//      siblings: [dynamic]Elements, //Make a pointer
 	xtxtalign: Align,
 	ytxtalign: Align,
 	mask: f32, //does nothing
@@ -71,19 +72,27 @@ winycstr: cstring
 default_font_size := f32(17*2)
 font: rl.Font
 ui_elems: [Elements]Uie
-palettes: [ColorPalettes]Palette
+palette: [ColorPalettes]Palette
 current_palette: Palette
 mousepos: rl.Vector2
 active_uie: Elements 
 siblings_of_parents: [][dynamic]Elements
 init_uielems :: proc() {
-	palettes[.DARK] = {
+	palette[.DARK] = {
 		windowbg = rl.Color{50, 50, 50, 255},
 		bg = rl.Color{100, 100, 100, 255},
 		bg_selected = rl.Color{80, 80, 80, 255},
 		border = rl.Color{180, 180, 180, 255},
 		text_color = rl.Color{255, 255, 255, 255},
 	}
+	palette[.LIGHT] = {
+		windowbg = rl.Color{255, 255, 255, 255},
+		bg = rl.Color{200, 200, 200, 255},
+		bg_selected = rl.Color{80, 80, 80, 255},
+		border = rl.Color{50, 50, 50, 255},
+		text_color = rl.Color{0, 0, 0, 255},
+	}
+
 	ui_elems[.WINDOW] = {
 		type = .WINDOW,
 	}
@@ -117,6 +126,6 @@ init_uielems :: proc() {
 		ui_elems[i].id = Elements(i)
 	}
 	init_uie_siblings()
-	current_palette = palettes[.DARK]
+	current_palette = palette[.LIGHT]
 }
  
