@@ -27,8 +27,9 @@ FenPhase :: enum
 	HALF_MOVES,
 	FULL_MOVES,
 }
-Piece :: enum 
+Piece :: enum u8
 {
+	NONE,
 	WHITE_ROOK,
 	WHITE_KNIGHT,
 	WHITE_BISHOP,
@@ -59,8 +60,13 @@ board_size: i32
 square_size: i32	
 scale := 1.5 //dpi scaling
 grabbed_piece: int
+board_state: [8][8]Piece
 
+debug_x: i32
+debug_y: i32
+line_break: i32
 
+//board_properties: []Properties (move, castle, etc)
 main :: proc() 
 {
 	piece_set := "wikipieces"
@@ -71,25 +77,25 @@ main :: proc()
 	font = rl.LoadFont(FONT)
 	init_piece_textures(piece_set)
 	fen := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+	init_board_state_from_fen(fen)
 //	-- Draw loop
 	for !rl.WindowShouldClose() 
 	{
+		//Reset debug string positions
+		debug_x = 1250
+		debug_y = 0
+		line_break = 30
+
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.WHITE)
 		draw_chessboard(BOARD_X, BOARD_Y, BOARD_SCALE)
-		draw_pieces_fen(fen)
+		draw_pieces_board_state()
 		update_mouse()
 		rl.DrawFPS(0,0)
 		rl.EndDrawing()
 	}
 }
-int_to_cstring :: proc(i: int) -> cstring
-{
-	// allocates in heap (i think?)
-	buffer: [8]byte
-	int_string := strconv.itoa(buffer[:], i)
-	return strings.clone_to_cstring(int_string)
-}
+
 
 update_mouse :: proc()
 {
@@ -97,7 +103,7 @@ update_mouse :: proc()
 	mouse_x := rl.GetMouseX()
 	mouse_y := rl.GetMouseY()
 	mouse_file := mouse_x / square_size
-	mouse_rank := mouse_y / square_size
+	mouse_rank := abs((mouse_y / square_size) - 7)
 	mouse_file_cstring := int_to_cstring(int(mouse_file))
 	mouse_rank_cstring := int_to_cstring(int(mouse_rank))
 	defer delete(mouse_file_cstring)
@@ -116,9 +122,9 @@ update_mouse :: proc()
 	{
 		if mouse_rank <= 7 && mouse_file <= 7
 		{
-			// ---------------- IMPLEMENT BOARD [][]u8
-			// ---------------- REWRITE DRAW FEN TO WRITE TO BOARD
-			// ---------------- USE BOARD FOR ALL FUTURE REFERENCES
+			current_piece_string := fmt.tprint(board_state[mouse_rank][mouse_file])
+			current_piece_cstring := strings.unsafe_string_to_cstring(current_piece_string)
+			rl.DrawText(current_piece_cstring, 1250, 890, i32(FONT_SIZE * scale), rl.BLACK)
 			rl.DrawText("yipee", 1250, 860, i32(FONT_SIZE * scale), rl.BLACK)
 		}
 		//check if piece
@@ -126,18 +132,50 @@ update_mouse :: proc()
 		//no : ignore
 	}
 }
-
-draw_pieces_fen :: proc(fen: string)
+insert_piece_into_board_state :: proc(piece: rune, rank: int, file: int, from_fen: bool)
 {
-	debug_x := i32(1250)
-	debug_y := i32(0)
-	line_break := i32(30)
+	//can't assign to procedure parameters
+	local_rank := rank 	
+	if from_fen == true
+	{ //FEN goes from h-a
+		local_rank = abs(rank - 7)
+	}
+	switch piece
+	{
+	case 'r':
+		board_state[local_rank][file] = .BLACK_ROOK
+	case 'n':
+		board_state[local_rank][file] = .BLACK_KNIGHT
+	case 'b':
+		board_state[local_rank][file] = .BLACK_BISHOP
+	case 'k':
+		board_state[local_rank][file] = .BLACK_KING
+	case 'q':
+		board_state[local_rank][file] = .BLACK_QUEEN
+	case 'p':
+		board_state[local_rank][file] = .BLACK_PAWN
+	case 'R':
+		board_state[local_rank][file] = .WHITE_ROOK
+	case 'N':
+		board_state[local_rank][file] = .WHITE_KNIGHT
+	case 'B':
+		board_state[local_rank][file] = .WHITE_BISHOP
+	case 'K':
+		board_state[local_rank][file] = .WHITE_KING
+	case 'Q':
+		board_state[local_rank][file] = .WHITE_QUEEN
+	case 'P':
+		board_state[local_rank][file] = .WHITE_PAWN
+	}
+}
+
+init_board_state_from_fen :: proc(fen:string)
+{
 	rank, file := 0, 0
 	phase: FenPhase
 	character: []rune
 	for character in fen 
 	{
-
 		switch phase
 		{
 		case .PLACEMENT:
@@ -145,7 +183,7 @@ draw_pieces_fen :: proc(fen: string)
 			{
 			case 'r', 'n', 'b', 'q', 'k', 'p', 
 			     'R', 'N', 'B', 'Q', 'K', 'P':
-				draw_piece(character, rank, file)
+				insert_piece_into_board_state(character, rank, file, true)
 				file = file + 1
 			case '/':
 				rank = rank + 1
@@ -212,65 +250,61 @@ draw_pieces_fen :: proc(fen: string)
 		}
 		
 	}
-/*
-   	if current file > h / 8 INVALID FEN
-	switch through each character
-	if piece, place piece on square, TOP
-	if number, skip x squares
-	if /, skip to next rank, reset file
-	if invalid character, INVALID FEN
-	if space after 7th /
-	specify team to move
-	specify castles
-	specify en passant
-	specify half moves / moves
-   */
+
 }
-// selected parameter (to allow picking up of pieces)
-draw_piece :: proc(piece: rune, rank: int, file: int) 
+
+draw_pieces_board_state :: proc() 
 {
 	piece_size := 100 //px (TODO: DONT HARDCODE)
 	piece_scale := 1.5
 	texture: rl.Texture2D
-	// centers the piece independent on scale (0x0 is normally topleft corner)
-	x := (i32(file) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(piece_scale)) / 2
-	y := (i32(rank) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(piece_scale)) / 2
-	position := rl.Vector2 { f32(x), f32(y) }
 	rotation := 0.0
-	switch piece 
+
+	for rank in 0..<8 
 	{
-	case 'p':
-		texture = black_pawn_texture
-	case 'r':
-		texture = black_rook_texture
-	case 'n':
-		texture = black_knight_texture
-	case 'b':
-		texture = black_bishop_texture
-	case 'q':
-		texture = black_queen_texture
-	case 'k':
-		texture = black_king_texture
-	case 'P':
-		texture = white_pawn_texture
-	case 'R':
-		texture = white_rook_texture
-	case 'N':
-		texture = white_knight_texture
-	case 'B':
-		texture = white_bishop_texture
-	case 'Q':
-		texture = white_queen_texture
-	case 'K':
-		texture = white_king_texture
+		for file in 0..<8
+		{
+		// centers the piece independent on scale (0x0 is normally topleft corner)
+		x := (i32(file) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(piece_scale)) / 2
+		y := (i32(abs(rank-7)) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(piece_scale)) / 2
+		position := rl.Vector2 { f32(x), f32(y) }
+			switch board_state[rank][file]
+			{
+			case .NONE:
+				continue
+			case .BLACK_PAWN:
+				texture = black_pawn_texture
+			case .BLACK_ROOK:
+				texture = black_rook_texture
+			case .BLACK_KNIGHT:
+				texture = black_knight_texture
+			case .BLACK_BISHOP:
+				texture = black_bishop_texture
+			case .BLACK_QUEEN:
+				texture = black_queen_texture
+			case .BLACK_KING:
+				texture = black_king_texture
+			case .WHITE_PAWN:
+				texture = white_pawn_texture
+			case .WHITE_ROOK:
+				texture = white_rook_texture
+			case .WHITE_KNIGHT:
+				texture = white_knight_texture
+			case .WHITE_BISHOP:
+				texture = white_bishop_texture
+			case .WHITE_QUEEN:
+				texture = white_queen_texture
+			case .WHITE_KING:
+				texture = white_king_texture
+			}
+		rl.DrawTextureEx(
+			texture,
+			position,
+			f32(rotation),
+			f32(piece_scale),
+			DEFAULT_TINT)
+		}
 	}
-	rl.DrawTextureEx(
-		texture,
-		position,
-		f32(rotation),
-		f32(piece_scale),
-		DEFAULT_TINT
-	)
 }
 
 draw_chessboard :: proc(x, y: i32, scale: f32) 
@@ -311,6 +345,7 @@ draw_chessboard :: proc(x, y: i32, scale: f32)
 		}
 	}
 }
+
 init_piece_textures :: proc(piece_set: string) 
 {
 	path := "./assets/pieces/"
@@ -340,4 +375,11 @@ init_piece_textures :: proc(piece_set: string)
 	black_king_texture = rl.LoadTextureFromImage(black_king_image)
 	black_queen_texture = rl.LoadTextureFromImage(black_queen_image)
 	black_rook_texture = rl.LoadTextureFromImage(black_rook_image)
+}
+int_to_cstring :: proc(i: int) -> cstring
+{
+	// allocates in heap (i think?)
+	buffer: [8]byte
+	int_string := strconv.itoa(buffer[:], i)
+	return strings.clone_to_cstring(int_string)
 }
