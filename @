@@ -38,25 +38,15 @@ main :: proc()
 	}
 }
 
-check_piece_placement_legal :: proc(piece: u8,
+check_piece_placement_legal :: proc(piece: u8_Union,
 				old_rank: u8,
 				old_file: u8,
-				new_rank: u8,
-				new_file: u8) -> bool
+				new_rank: int,
+				new_file: int)
 {
 		// TODO ::: CHECK IF PIECE PLACEMENT IS VALID
-		board_state[new_rank][new_file] = selected_piece[.PIECE]
+		board_state[new_rank][new_file] = Piece(selected_piece[.PIECE])
 		selected_piece[.PIECE] = u8(Piece.NONE)
-		return true
-} 
-draw_piece :: proc(texture: rl.Texture2D, position: rl.Vector2)
-{
-	rotation := 0.0
-	rl.DrawTextureEx(texture,
-			position,
-			f32(rotation),
-			f32(scale),
-			DEFAULT_TINT)
 
 }
 
@@ -81,19 +71,11 @@ update_mouse :: proc()
 		case .NONE:
 			break
 		case:
-			legal := check_piece_placement_legal(
-						selected_piece[.PIECE],
+			check_piece_placement_legal(selected_piece[.PIECE],
 						selected_piece[.RANK],
 						selected_piece[.FILE],
-						u8(mouse_rank),
-						u8(mouse_file))
-			if legal 
-			{
-				//place
-			} else {
-				//return to original position
-			}
-
+						int(mouse_rank),
+						int(mouse_file))
 
 			//check if piece is in valid spot
 			//if yes 
@@ -111,11 +93,25 @@ update_mouse :: proc()
 		case:
 			selected_piece[.RANK] = u8(mouse_rank)
 			selected_piece[.FILE] = u8(mouse_file)
-			texture := get_texture(selected_piece[.PIECE])
+			//draw_piece
+			texture := get_texture(Piece(selected_piece[.PIECE]))
 			position := rl.Vector2 {
 				f32(mouse_x - 75),
 				f32(mouse_y - 75) }
-			draw_piece(texture, position)
+			rotation := 0.0
+			piece_scale := 1.5
+			rl.DrawTextureEx(
+				texture,
+				position,
+				f32(rotation),
+				f32(piece_scale),
+				DEFAULT_TINT)
+		
+		//check if grabbed
+		//yes : continue
+		//no : check if valid drop
+			//yes : drop
+			//no : return to original spot
 		}
 	}
 	if rl.IsMouseButtonPressed(.LEFT) == true 
@@ -130,10 +126,15 @@ update_mouse :: proc()
 				selected_piece[.PIECE] = u8(current_piece^)
 				selected_piece[.RANK] = u8(mouse_rank)
 				selected_piece[.FILE] = u8(mouse_file)
-				current_piece^ = u8(Piece.NONE)
+				current_piece^ = .NONE
+
 			}
 		}
+		//check if piece
+		//yes : grab
+		//no : ignore
 	}
+
 }
 insert_piece_into_board_state :: proc(piece: rune, rank: int, file: int, from_fen: bool)
 {
@@ -145,29 +146,29 @@ insert_piece_into_board_state :: proc(piece: rune, rank: int, file: int, from_fe
 	switch piece
 	{
 	case 'r':
-		board_state[local_rank][file] = u8(Piece.BLACK_ROOK)
+		board_state[local_rank][file] = .BLACK_ROOK
 	case 'n':
-		board_state[local_rank][file] = u8(Piece.BLACK_KNIGHT)
+		board_state[local_rank][file] = .BLACK_KNIGHT
 	case 'b':
-		board_state[local_rank][file] = u8(Piece.BLACK_BISHOP)
+		board_state[local_rank][file] = .BLACK_BISHOP
 	case 'k':
-		board_state[local_rank][file] = u8(Piece.BLACK_KING)
+		board_state[local_rank][file] = .BLACK_KING
 	case 'q':
-		board_state[local_rank][file] = u8(Piece.BLACK_QUEEN)
+		board_state[local_rank][file] = .BLACK_QUEEN
 	case 'p':
-		board_state[local_rank][file] = u8(Piece.BLACK_PAWN)
+		board_state[local_rank][file] = .BLACK_PAWN
 	case 'R':
-		board_state[local_rank][file] = u8(Piece.WHITE_ROOK)
+		board_state[local_rank][file] = .WHITE_ROOK
 	case 'N':
-		board_state[local_rank][file] = u8(Piece.WHITE_KNIGHT)
+		board_state[local_rank][file] = .WHITE_KNIGHT
 	case 'B':
-		board_state[local_rank][file] = u8(Piece.WHITE_BISHOP)
+		board_state[local_rank][file] = .WHITE_BISHOP
 	case 'K':
-		board_state[local_rank][file] = u8(Piece.WHITE_KING)
+		board_state[local_rank][file] = .WHITE_KING
 	case 'Q':
-		board_state[local_rank][file] = u8(Piece.WHITE_QUEEN)
+		board_state[local_rank][file] = .WHITE_QUEEN
 	case 'P':
-		board_state[local_rank][file] = u8(Piece.WHITE_PAWN)
+		board_state[local_rank][file] = .WHITE_PAWN
 	}
 }
 
@@ -252,16 +253,25 @@ init_board_state_from_fen :: proc(fen:string)
 draw_pieces_from_board_state :: proc() 
 {
 	piece_size := 100 //px (TODO: DONT HARDCODE)
+	piece_scale := 1.5
+	texture: rl.Texture2D
+	rotation := 0.0
+
 	for rank in 0..<8 
 	{
 		for file in 0..<8
 		{
 		// centers the piece independent on scale (0x0 is normally topleft corner)
-		x := (i32(file) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(scale)) / 2
-		y := (i32(abs(rank-7)) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(scale)) / 2
+		x := (i32(file) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(piece_scale)) / 2
+		y := (i32(abs(rank-7)) * square_size) + (square_size / 2) - i32(f64(piece_size) * f64(piece_scale)) / 2
 		position := rl.Vector2 { f32(x), f32(y) }
-		texture := get_texture(board_state[rank][file])
-		draw_piece(texture, position)
+		texture = get_texture(board_state[rank][file])
+		rl.DrawTextureEx(
+			texture,
+			position,
+			f32(rotation),
+			f32(piece_scale),
+			DEFAULT_TINT)
 		}
 	}
 }
@@ -304,10 +314,10 @@ draw_chessboard :: proc(x, y: i32, scale: f32)
 	}
 }
 
-get_texture :: proc(piece: u8) -> rl.Texture 
+get_texture :: proc(piece: Piece) -> rl.Texture 
 {
 	blank_texture: rl.Texture
- 	#partial switch Piece(piece)
+ 	#partial switch piece
 	{
 	case .NONE:
 		return blank_texture
