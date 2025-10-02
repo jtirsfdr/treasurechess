@@ -57,12 +57,14 @@ black_bishop_texture: rl.Texture
 black_king_texture: rl.Texture
 black_queen_texture: rl.Texture
 black_rook_texture: rl.Texture
+gray_dot_texture: rl.Texture
 
 board_size: i32
 square_size: i32	
 scale := 1.5 //dpi scaling
 selected_piece: [SelectedPieceLabel]u8
 board_state: [8][8]u8
+legal_moves: [8][8]bool
 
 debug_x: i32
 debug_y: i32

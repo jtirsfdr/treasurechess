@@ -26,15 +26,55 @@ main :: proc()
 		//Reset debug string positions
 		debug_x = 1250
 		debug_y = 0
-		line_break = 30
+		line_break = 30 //px
 
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.WHITE)
 		draw_chessboard(BOARD_X, BOARD_Y, BOARD_SCALE)
 		draw_pieces_from_board_state()
-		update_mouse()
+		get_legal_moves()
+		update_state()
 		rl.DrawFPS(0,0)
 		rl.EndDrawing()
+	}
+}
+
+get_legal_moves :: proc()
+{
+	rank := selected_piece[.RANK]
+	file := selected_piece[.FILE]
+
+	// Reset
+	for rank in 0..<8
+	{
+		for file in 0..<8
+		{
+			legal_moves[rank][file] = false
+		}
+	}
+
+	#partial switch Piece(selected_piece[.PIECE])
+	{
+	case .WHITE_PAWN:
+		if rank == 1
+		{
+			legal_moves[rank + 1][file] = true
+			legal_moves[rank + 2][file] = true	
+		}
+		else
+		{
+			legal_moves[rank + 1][file] = true
+		}
+	case .BLACK_PAWN:
+		if rank == 6
+		{
+			legal_moves[rank - 1][file] = true
+			legal_moves[rank - 2][file] = true
+		}
+		else
+		{
+			legal_moves[rank - 1][file] = true
+		}
 	}
 }
 
@@ -42,13 +82,55 @@ check_piece_placement_legal :: proc(piece: u8,
 				old_rank: u8,
 				old_file: u8,
 				new_rank: u8,
-				new_file: u8) -> bool
+				new_file: u8)
 {
-		// TODO ::: CHECK IF PIECE PLACEMENT IS VALID
-		board_state[new_rank][new_file] = selected_piece[.PIECE]
-		selected_piece[.PIECE] = u8(Piece.NONE)
-		return true
-} 
+	/*
+		CHANGE FUNCTION:
+		Compare new r&f to legal r&f
+	   */
+	new_pos := &board_state[new_rank][new_file]
+	old_pos := &board_state[old_rank][old_file]
+
+		#partial switch Piece(piece)
+		{
+		case .WHITE_PAWN:
+			if new_rank == old_rank + 1 
+			{
+				new_pos^ = piece
+				return
+			}
+			if old_rank == 1
+			{
+				if new_rank == old_rank + 1 ||
+					new_rank == old_rank + 2
+				{
+					new_pos^ = piece
+					return
+				} 
+			}
+			old_pos^ = piece
+			return
+
+		case .BLACK_PAWN: 
+			if new_rank == old_rank - 1
+			{
+				new_pos^ = piece
+				return
+			}
+			else if old_rank == 6
+			{
+				if new_rank == old_rank - 1 ||
+					new_rank == old_rank - 2
+				{
+					new_pos^ = piece
+					return
+				} 
+			}
+			old_pos^ = piece
+			return
+		}
+}
+
 draw_piece :: proc(texture: rl.Texture2D, position: rl.Vector2)
 {
 	rotation := 0.0
@@ -60,7 +142,8 @@ draw_piece :: proc(texture: rl.Texture2D, position: rl.Vector2)
 
 }
 
-update_mouse :: proc()
+
+update_state :: proc()
 {
 	// Get piece selection + mouse status
 	mouse_x := rl.GetMouseX()
@@ -74,6 +157,11 @@ update_mouse :: proc()
 	draw_debug(to_string(selected_piece))
 	draw_debug("current piece: ", to_string(current_piece^))
 
+	if selected_piece[.PIECE] != u8(Piece.NONE)
+	{
+		draw_legal_moves()
+	}
+
 	if rl.IsMouseButtonReleased(.LEFT) == true
 	{
 		#partial switch Piece(selected_piece[.PIECE])
@@ -81,25 +169,13 @@ update_mouse :: proc()
 		case .NONE:
 			break
 		case:
-			legal := check_piece_placement_legal(
+			check_piece_placement_legal(
 						selected_piece[.PIECE],
 						selected_piece[.RANK],
 						selected_piece[.FILE],
 						u8(mouse_rank),
 						u8(mouse_file))
-			if legal 
-			{
-				//place
-			} else {
-				//return to original position
-			}
-
-
-			//check if piece is in valid spot
-			//if yes 
-				//place
-			//no
-				//return to original spot
+			selected_piece[.PIECE] = u8(Piece.NONE)
 		}
 	}
 	if rl.IsMouseButtonDown(.LEFT) == true
@@ -109,8 +185,6 @@ update_mouse :: proc()
 		case .NONE:
 			break	
 		case:
-			selected_piece[.RANK] = u8(mouse_rank)
-			selected_piece[.FILE] = u8(mouse_file)
 			texture := get_texture(selected_piece[.PIECE])
 			position := rl.Vector2 {
 				f32(mouse_x - 75),
@@ -135,6 +209,7 @@ update_mouse :: proc()
 		}
 	}
 }
+
 insert_piece_into_board_state :: proc(piece: rune, rank: int, file: int, from_fen: bool)
 {
 	local_rank := rank 	
@@ -265,6 +340,31 @@ draw_pieces_from_board_state :: proc()
 		}
 	}
 }
+draw_legal_moves :: proc()
+{
+	rotation := f32(0.0)
+	for rank in 0..<8
+	{
+		for file in 0..<8
+		{
+			if legal_moves[rank][file] == true
+			{
+				//magic num is to center (replace eventually)
+				x := square_size * i32(file) - 75
+				y := board_size - (square_size * i32(rank) + 225)
+				position := rl.Vector2 { f32(x), f32(y) }
+
+				rl.DrawTextureEx(
+					gray_dot_texture,
+					position,
+					rotation,
+					f32(scale),
+					DEFAULT_TINT)
+			}
+		}
+	}
+}
+
 draw_chessboard :: proc(x, y: i32, scale: f32) 
 {
 	square_color: rl.Color
@@ -355,6 +455,7 @@ init_piece_textures :: proc(piece_set: string)
 	black_king_image := rl.LoadImage("./assets/pieces/black_king.png")
 	black_queen_image := rl.LoadImage("./assets/pieces/black_queen.png")
 	black_rook_image := rl.LoadImage("./assets/pieces/black_rook.png")
+	gray_dot_image := rl.LoadImage("./assets/pieces/gray_dot.png")
 
 	white_pawn_texture = rl.LoadTextureFromImage(white_pawn_image)
 	white_knight_texture = rl.LoadTextureFromImage(white_knight_image)
@@ -368,6 +469,7 @@ init_piece_textures :: proc(piece_set: string)
 	black_king_texture = rl.LoadTextureFromImage(black_king_image)
 	black_queen_texture = rl.LoadTextureFromImage(black_queen_image)
 	black_rook_texture = rl.LoadTextureFromImage(black_rook_image)
+	gray_dot_texture = rl.LoadTextureFromImage(gray_dot_image)
 }
 
 to_string :: proc(v: any) -> string
