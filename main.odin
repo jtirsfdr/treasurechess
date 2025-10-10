@@ -31,7 +31,6 @@ main :: proc()
 		rl.ClearBackground(rl.WHITE)
 		draw_chessboard(BOARD_X, BOARD_Y, BOARD_SCALE)
 		draw_pieces_from_board_state()
-		get_legal_moves() //REMOVE FROM DRAW LOOP
 		update_state()
 		rl.DrawFPS(0,0)
 		rl.EndDrawing()
@@ -68,6 +67,7 @@ update_state :: proc()
 	if rl.IsMouseButtonPressed(.LEFT) == true 
 	{
 		check_if_selection_legal(mouse_rank, mouse_file)
+		get_legal_moves()
 	}
 
 	if rl.IsMouseButtonDown(.LEFT) == true
@@ -288,13 +288,11 @@ init_board_state_from_fen :: proc(fen:string)
 	}
 
 }
-
 get_legal_moves :: proc()
-{ // !! DONT RUN THIS SHIT EVERY FRAME.
+{
 	rank := selected_piece[.RANK]
 	file := selected_piece[.FILE]
 	piece := Piece(selected_piece[.PIECE])
-	// Reset
 	for rank in 0..<8
 	{
 		for file in 0..<8
@@ -306,59 +304,66 @@ get_legal_moves :: proc()
 	#partial switch piece
 	{
 	case .WHITE_PAWN, .BLACK_PAWN: 
-		dir: i8
-		turn := i8(turn) // !! UNIFY THIS
 		starting_rank: i8
 		if piece == .WHITE_PAWN
 		{
-			dir = 1
 			starting_rank = 1
 		}
 		else 
 		{
-			dir = -1
 			starting_rank = 6
 		}
-		// Normal captures
-		if board_state[rank + (1 * turn)][file + 1] != i8(Piece.NONE)
+
+		if file != 7
 		{
-			legal_moves[rank + (1 * turn)][file + 1] = true
+			// Captures
+			if board_state[rank + i8(turn)][file + 1] != i8(Piece.NONE)
+			{
+				legal_moves[rank + i8(turn)][file + 1] = true
+			}
+			// En passant
+			if en_passant[rank + i8(turn)][file + 1] == true 
+			{
+				legal_moves[rank + i8(turn)][file + 1] = true
+			}
+
 		}
-		if board_state[rank + (1 * dir)][file - 1] != i8(Piece.NONE)
+		if file != 0
 		{
-			legal_moves[rank + (1 * dir)][file - 1] = true
+			// Captures
+			if board_state[rank + i8(turn)][file - 1] != i8(Piece.NONE)
+			{
+				legal_moves[rank + i8(turn)][file - 1] = true
+			}
+			// En passant
+			if en_passant[rank + i8(turn)][file - 1] == true
+			{
+				legal_moves[rank + i8(turn)][file - 1] = true
+			}
 		}
-		
-		// En passant
-		if en_passant[rank + 1][file + 1] == true 
+
+		// !! Promotion
+
+		// Unobstructed movement
+		if board_state[rank + i8(turn)][file] == i8(Piece.NONE)
 		{
-			legal_moves[rank + (1 * dir)][file + 1] = true
-		}
-		if en_passant[rank + 1][file - 1] == true
-		{
-			legal_moves[rank + (1 * dir)][file - 1] = true
-		}
-		
-		//Promotion
-		//TODO
-		// Starting and unobstructed movement
-		if board_state[rank + (1 * dir)][file] == i8(Piece.NONE)
-		{
-			legal_moves[rank + (1 * dir)][file] = true
+			legal_moves[rank + i8(turn)][file] = true
 		}
 
 		if rank == starting_rank
 		{
-			if board_state[rank + (2 * dir)][file] == i8(Piece.NONE)
+			if board_state[rank + (2 * i8(turn))][file] == i8(Piece.NONE)
 			{
-				legal_moves[rank + (2 * dir)][file] = true	
+				legal_moves[rank + (2 * i8(turn))][file] = true	
 			}
 		}
 
-	case .BLACK_ROOK, .WHITE_ROOK, .BLACK_BISHOP, .WHITE_BISHOP, .WHITE_QUEEN, .BLACK_QUEEN, .WHITE_KING, .BLACK_KING, .BLACK_KNIGHT, .WHITE_KNIGHT:
+	case .WHITE_ROOK..=.WHITE_KING, .BLACK_ROOK..=.BLACK_KING: // All pieces but pawns
 		for direction in 0..<8
 		{
+			// !! allow captures
 			hit_invalid_square := false
+//			hit_piece := false
 			index := i8(0)
 			for hit_invalid_square == false 
 			{
@@ -459,22 +464,46 @@ get_legal_moves :: proc()
 				if new_rank >= 0  &&
 					new_rank <= 7 &&
 					new_file >= 0 &&
-					new_file <= 7 &&
-					board_state[new_rank][new_file] == i8(Piece.NONE) 
+					new_file <= 7 
 				{
- 					#partial switch piece
+					#partial switch Piece(board_state[new_rank][new_file])
 					{
-					case .WHITE_KING, .BLACK_KING, .WHITE_KNIGHT, .BLACK_KNIGHT:
-						//only check once per direction
-						legal_moves[new_rank][new_file] = true
-						hit_invalid_square = true 
-					case:
-						legal_moves[new_rank][new_file] = true
+					case .NONE:
+ 						#partial switch piece
+						{
+						case .WHITE_KING, .BLACK_KING, .WHITE_KNIGHT, .BLACK_KNIGHT:
+							//only check once per direction
+							legal_moves[new_rank][new_file] = true
+							hit_invalid_square = true 
+						case:
+							// Empty space
+							legal_moves[new_rank][new_file] = true
+						}
+					case .WHITE_ROOK..=.WHITE_PAWN: 
+						if turn == .WHITE
+						{
+							hit_invalid_square = true
+						}
+						else
+						{
+							hit_invalid_square = true
+							legal_moves[new_rank][new_file] = true
+						}
 
+					case .BLACK_ROOK..=.BLACK_PAWN: 
+						if turn == .BLACK
+						{
+							hit_invalid_square = true
+						}
+						else
+						{
+							hit_invalid_square = true
+							legal_moves[new_rank][new_file] = true
+						}
 					}
-				} 
-				else 
-				{
+				}
+				else
+				{	// Hit a wall (OOB)
 					hit_invalid_square = true
 				}
 			}
@@ -521,7 +550,7 @@ get_texture :: proc(piece: i8) -> rl.Texture
 init_piece_textures :: proc(piece_set: string) 
 {
 	path := "./assets/pieces/"
-	//Use path + piece set to load (TODO)
+	// !! Use path + piece set to load 
 	white_pawn_image := rl.LoadImage("./assets/pieces/white_pawn.png")
 	white_knight_image := rl.LoadImage("./assets/pieces/white_knight.png")
 	white_bishop_image := rl.LoadImage("./assets/pieces/white_bishop.png")
@@ -577,7 +606,7 @@ draw_piece :: proc(texture: rl.Texture2D, position: rl.Vector2)
 
 draw_pieces_from_board_state :: proc() 
 {
-	piece_size := 100 //px (TODO: DONT HARDCODE)
+	piece_size := 100 //px !! (DONT HARDCODE)
 	for rank in 0..<8 
 	{
 		for file in 0..<8
