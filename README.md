@@ -1,2 +1,5 @@
-A Chess practice client that doesn't exist yet
+A Chess practice client
 
+![preview](./treasurechess.png?raw=true)
+
+Currently a WIP.
