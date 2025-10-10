@@ -13,6 +13,19 @@ FONT :: "pixelplay.png"
 FONT_SIZE :: 22
 DEFAULT_TINT :: 255
 
+ROOK_DIRECTION :: enum {
+	N,
+	E,
+	S,
+	W,
+}
+BISHOP_DIRECTION :: enum {
+	NE,
+	SE,
+	SW,
+	NW,
+}
+
 FenPhase :: enum 
 {
 	PLACEMENT,
@@ -22,7 +35,7 @@ FenPhase :: enum
 	HALF_MOVES,
 	FULL_MOVES,
 }
-Piece :: enum u8
+Piece :: enum i8
 {
 	NONE,
 	WHITE_ROOK,
@@ -38,7 +51,7 @@ Piece :: enum u8
 	BLACK_KING,
 	BLACK_PAWN,
 }
-SelectedPieceLabel :: enum u8
+SelectedPieceLabel :: enum i8
 {
 	PIECE,
 	RANK,
@@ -61,9 +74,9 @@ gray_dot_texture: rl.Texture
 
 board_size: i32
 square_size: i32	
-scale := 1.5 //dpi scaling
-selected_piece: [SelectedPieceLabel]u8
-board_state: [8][8]u8
+scale := 1 //dpi scaling
+selected_piece: [SelectedPieceLabel]i8
+board_state: [8][8]i8
 legal_moves: [8][8]bool
 
 debug_x: i32
@@ -95,6 +108,7 @@ Elements :: enum {
 	TITLE_MENU,
 	BODY,
 }
+
 
 ColorPalettes :: enum {
 	DARK,
