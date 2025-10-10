@@ -27,12 +27,11 @@ main :: proc()
 		debug_x = 800
 		debug_y = 0
 		line_break = 30 //px
-
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.WHITE)
 		draw_chessboard(BOARD_X, BOARD_Y, BOARD_SCALE)
 		draw_pieces_from_board_state()
-		get_legal_moves()
+		get_legal_moves() //REMOVE FROM DRAW LOOP
 		update_state()
 		rl.DrawFPS(0,0)
 		rl.EndDrawing()
@@ -42,16 +41,19 @@ main :: proc()
 
 update_state :: proc()
 {
+
 	mouse_x := rl.GetMouseX()
 	mouse_y := rl.GetMouseY()
 	mouse_file := clamp(mouse_x / square_size, 0, 7)
 	mouse_rank := clamp(abs((mouse_y / square_size) - 7), 0, 7)
 	current_piece := &board_state[mouse_rank][mouse_file] 
+
 	draw_debug("mouse rank: ", to_string(mouse_rank))
 	draw_debug("mouse_file: ", to_string(mouse_file))
 	draw_debug("selected piece:")
 	draw_debug(to_string(selected_piece))
 	draw_debug("current piece: ", to_string(current_piece^))
+	draw_debug("turn: ", to_string(turn))
 
 	if selected_piece[.PIECE] != i8(Piece.NONE)
 	{
@@ -59,60 +61,119 @@ update_state :: proc()
 	}
 
 	if rl.IsMouseButtonReleased(.LEFT) == true
-	{ //Check if move is legal
-		#partial switch Piece(selected_piece[.PIECE])
-		{
-		case .NONE:
-			break
-		case:
-			old_rank := selected_piece[.RANK]
-			old_file := selected_piece[.FILE]
-			new_rank := i8(mouse_rank)
-			new_file := i8(mouse_file)
-			piece := &selected_piece[.PIECE]
-
-			if legal_moves[new_rank][new_file] == true 
-			{
-				board_state[new_rank][new_file] = piece^
-			}
-			else
-			{
-				board_state[old_rank][old_file] = piece^
-			}
-			piece^ = i8(Piece.NONE)
-		}
-	}
-	else if rl.IsMouseButtonPressed(.LEFT) == true 
-	{ //Select a piece (to grab, holding only for now)
-		if mouse_rank <= 7 && mouse_file <= 7
-		{
-			#partial switch Piece(current_piece^)
-			{
-			case .NONE:
-				break
-			case:
-				selected_piece[.PIECE] = i8(current_piece^)
-				selected_piece[.RANK] = i8(mouse_rank)
-				selected_piece[.FILE] = i8(mouse_file)
-				current_piece^ = i8(Piece.NONE)
-			}
-		}
-	}
-	else if rl.IsMouseButtonDown(.LEFT) == true
-	{ //Hold a piece
-		#partial switch Piece(selected_piece[.PIECE])
-		{
-		case .NONE:
-			break	
-		case:
-			texture := get_texture(selected_piece[.PIECE])
-			position := rl.Vector2 {
-				f32(mouse_x - (50 * i32(scale))), //FIX MAGIC NUM
-				f32(mouse_y - (50 * i32(scale))) }
-			draw_piece(texture, position)
-		}
+	{ 
+		check_if_requested_move_legal(mouse_rank, mouse_file)
 	}
 
+	if rl.IsMouseButtonPressed(.LEFT) == true 
+	{
+		check_if_selection_legal(mouse_rank, mouse_file)
+	}
+
+	if rl.IsMouseButtonDown(.LEFT) == true
+	{ 
+		hold_piece(mouse_x, mouse_y)		
+	}
+}
+
+hold_piece :: proc(mouse_x: i32, mouse_y: i32)
+{
+	#partial switch Piece(selected_piece[.PIECE])
+	{
+	case .NONE:
+	case:
+		texture := get_texture(selected_piece[.PIECE])
+		position := rl.Vector2 {
+			f32(mouse_x - (50 * i32(scale))), //FIX MAGIC NUM
+			f32(mouse_y - (50 * i32(scale))) }
+		draw_piece(texture, position)
+	}
+}
+
+check_if_requested_move_legal :: proc(mouse_rank: i32, mouse_file: i32)
+{
+	piece := &selected_piece[.PIECE]
+	old_rank := selected_piece[.RANK]
+	old_file := selected_piece[.FILE]
+	new_rank := i8(mouse_rank)
+	new_file := i8(mouse_file)
+
+	if legal_moves[new_rank][new_file] == true 
+	{
+
+		// Take opponent's piece if en passant
+		if piece^ == i8(Piece.WHITE_PAWN) || piece^ == i8(Piece.BLACK_PAWN)
+		{
+			if legal_moves[new_rank][new_file] == en_passant[new_rank][new_file]
+			{
+				board_state[new_rank + (1 * i8(-turn))][new_file] = i8(Piece.NONE)
+			}
+		}
+
+		//Reset en passant
+		for rank in 0..<8
+		{
+			for file in 0..<8
+			{
+				en_passant[rank][file] = false
+			}
+		}
+
+		// Set en passant if pawn moved two squares
+		if piece^ == i8(Piece.WHITE_PAWN) || piece^ == i8(Piece.BLACK_PAWN)
+		{
+			if new_rank == old_rank + (2 * i8(turn))
+			{
+				en_passant[old_rank + (1 * i8(turn))][old_file] = true
+			}
+		}
+		
+		board_state[new_rank][new_file] = piece^
+
+		if turn == .WHITE
+		{
+			turn = .BLACK
+		}
+		else
+		{
+			turn = .WHITE
+		}
+	}
+	else
+	{
+		board_state[old_rank][old_file] = piece^
+	}
+	piece^ = i8(Piece.NONE)
+
+}
+
+check_if_selection_legal :: proc(mouse_rank: i32, mouse_file: i32)
+{
+	current_piece := &board_state[mouse_rank][mouse_file] 
+
+	if mouse_rank <= 7 && mouse_file <= 7
+	{
+		#partial switch Piece(current_piece^)
+		{
+		case .NONE:
+			return
+		case .WHITE_PAWN, .WHITE_ROOK, .WHITE_KNIGHT, .WHITE_BISHOP, .WHITE_KING, .WHITE_QUEEN:
+			if turn != .WHITE
+			{
+				return
+			}
+		case .BLACK_PAWN, .BLACK_ROOK, .BLACK_KNIGHT, .BLACK_BISHOP, .BLACK_KING, .BLACK_QUEEN:
+			if turn != .BLACK
+			{
+				return
+			}
+		}
+
+		selected_piece[.PIECE] = i8(current_piece^)
+		selected_piece[.RANK] = i8(mouse_rank)
+		selected_piece[.FILE] = i8(mouse_file)
+		current_piece^ = i8(Piece.NONE)
+	}
 }
 
 insert_piece_into_board_state :: proc(piece: rune, rank: int, file: int, from_fen: bool)
@@ -183,9 +244,9 @@ init_board_state_from_fen :: proc(fen:string)
 			switch character
 			{
 			case 'w':
-				draw_debug("white to move")
+				turn = .WHITE
 			case 'b':
-				draw_debug("black to move")
+				turn = .BLACK
 			case ' ':
 				//do some better error handling here
 				phase = .CASTLE
@@ -229,7 +290,7 @@ init_board_state_from_fen :: proc(fen:string)
 }
 
 get_legal_moves :: proc()
-{
+{ // !! DONT RUN THIS SHIT EVERY FRAME.
 	rank := selected_piece[.RANK]
 	file := selected_piece[.FILE]
 	piece := Piece(selected_piece[.PIECE])
@@ -246,6 +307,7 @@ get_legal_moves :: proc()
 	{
 	case .WHITE_PAWN, .BLACK_PAWN: 
 		dir: i8
+		turn := i8(turn) // !! UNIFY THIS
 		starting_rank: i8
 		if piece == .WHITE_PAWN
 		{
@@ -257,15 +319,40 @@ get_legal_moves :: proc()
 			dir = -1
 			starting_rank = 6
 		}
+		// Normal captures
+		if board_state[rank + (1 * turn)][file + 1] != i8(Piece.NONE)
+		{
+			legal_moves[rank + (1 * turn)][file + 1] = true
+		}
+		if board_state[rank + (1 * dir)][file - 1] != i8(Piece.NONE)
+		{
+			legal_moves[rank + (1 * dir)][file - 1] = true
+		}
+		
+		// En passant
+		if en_passant[rank + 1][file + 1] == true 
+		{
+			legal_moves[rank + (1 * dir)][file + 1] = true
+		}
+		if en_passant[rank + 1][file - 1] == true
+		{
+			legal_moves[rank + (1 * dir)][file - 1] = true
+		}
+		
+		//Promotion
+		//TODO
+		// Starting and unobstructed movement
+		if board_state[rank + (1 * dir)][file] == i8(Piece.NONE)
+		{
+			legal_moves[rank + (1 * dir)][file] = true
+		}
 
 		if rank == starting_rank
 		{
-			legal_moves[rank + (1 * dir)][file] = true
-			legal_moves[rank + (2 * dir)][file] = true	
-		}
-		else
-		{
-			legal_moves[rank + (1 * dir)][file] = true
+			if board_state[rank + (2 * dir)][file] == i8(Piece.NONE)
+			{
+				legal_moves[rank + (2 * dir)][file] = true	
+			}
 		}
 
 	case .BLACK_ROOK, .WHITE_ROOK, .BLACK_BISHOP, .WHITE_BISHOP, .WHITE_QUEEN, .BLACK_QUEEN, .WHITE_KING, .BLACK_KING, .BLACK_KNIGHT, .WHITE_KNIGHT:
@@ -390,7 +477,6 @@ get_legal_moves :: proc()
 				{
 					hit_invalid_square = true
 				}
-
 			}
 		}
 	}
