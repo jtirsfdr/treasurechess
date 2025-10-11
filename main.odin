@@ -40,6 +40,17 @@ main :: proc()
 
 update_state :: proc()
 {
+	// BUGS
+	// !! SELECTING A PIECE ALLOWS DISCOVERED CHECKS EVEN IF PIECE DIDN'T MOVE YET
+	// !! RESTRICT MOVES WHEN IN CHECK
+	// !! DISABLE CHECK WHEN NOT IN CHECK
+	// TODO
+	// !! SETUP CHECKMATE
+	// !! SETUP PGN HISTORY
+	// !! SETUP PUZZLES
+	// !! SETUP ONLINE
+	// !! SETUP GAME ANALYSIS
+	// !! SETUP NICE GUI
 
 	mouse_x := rl.GetMouseX()
 	mouse_y := rl.GetMouseY()
@@ -53,6 +64,10 @@ update_state :: proc()
 	draw_debug(to_string(selected_piece))
 	draw_debug("current piece: ", to_string(current_piece^))
 	draw_debug("turn: ", to_string(turn))
+	draw_debug("white check: ", to_string(white_checked))
+	draw_debug("black check: ", to_string(black_checked))
+	
+	draw_checks()
 
 	if selected_piece[.PIECE] != i8(Piece.NONE)
 	{
@@ -67,13 +82,38 @@ update_state :: proc()
 	if rl.IsMouseButtonPressed(.LEFT) == true 
 	{
 		check_if_selection_legal(mouse_rank, mouse_file)
-		get_legal_moves()
+		set_legal_moves()
 	}
 
 	if rl.IsMouseButtonDown(.LEFT) == true
 	{ 
 		hold_piece(mouse_x, mouse_y)		
 	}
+}
+
+draw_checks :: proc()
+{
+	check_red := rl.Color { 255, 0, 0, 120 }
+	if white_checked == true
+	{
+		rank := i32(white_king_piece[.RANK])
+		file := i32(white_king_piece[.FILE])
+		rl.DrawRectangle(square_size * file,
+			square_size * abs(rank-7),
+			square_size, square_size,
+			check_red)
+	}
+	if black_checked == true
+	{
+		rank := i32(black_king_piece[.RANK])
+		file := i32(black_king_piece[.FILE])
+		rl.DrawRectangle(square_size * file,
+			square_size * abs(rank-7),
+			square_size, square_size,
+			check_red)
+	}
+
+
 }
 
 hold_piece :: proc(mouse_x: i32, mouse_y: i32)
@@ -109,6 +149,7 @@ check_if_requested_move_legal :: proc(mouse_rank: i32, mouse_file: i32)
 				board_state[new_rank + (1 * i8(-turn))][new_file] = i8(Piece.NONE)
 			}
 		}
+		
 
 		//Reset en passant
 		for rank in 0..<8
@@ -119,18 +160,33 @@ check_if_requested_move_legal :: proc(mouse_rank: i32, mouse_file: i32)
 			}
 		}
 
-		// Set en passant if pawn moved two squares
-		if piece^ == i8(Piece.WHITE_PAWN) || piece^ == i8(Piece.BLACK_PAWN)
+		if Piece(piece^) == .WHITE_PAWN || Piece(piece^) == .BLACK_PAWN
 		{
+
+			// Set en passant if pawn moved two squares
 			if new_rank == old_rank + (2 * i8(turn))
 			{
 				en_passant[old_rank + (1 * i8(turn))][old_file] = true
 			}
+
+			//Promotion !! (ALLOW DIFFERENT PIECES)
+			if new_rank == 0 
+			{
+				piece^ = i8(Piece.BLACK_QUEEN)
+			}
+			if new_rank == 7
+			{
+				piece^ = i8(Piece.WHITE_QUEEN)
+			}
+
 		}
-		
+
+		//Move piece to desired square
 		board_state[new_rank][new_file] = piece^
 
-		if turn == .WHITE
+
+		//Swap turns
+		if turn == .WHITE 
 		{
 			turn = .BLACK
 		}
@@ -138,9 +194,11 @@ check_if_requested_move_legal :: proc(mouse_rank: i32, mouse_file: i32)
 		{
 			turn = .WHITE
 		}
+
+		search_for_checks()
 	}
 	else
-	{
+	{	//Move piece to original square
 		board_state[old_rank][old_file] = piece^
 	}
 	piece^ = i8(Piece.NONE)
@@ -157,12 +215,15 @@ check_if_selection_legal :: proc(mouse_rank: i32, mouse_file: i32)
 		{
 		case .NONE:
 			return
-		case .WHITE_PAWN, .WHITE_ROOK, .WHITE_KNIGHT, .WHITE_BISHOP, .WHITE_KING, .WHITE_QUEEN:
+
+		case .WHITE_ROOK..=.WHITE_PAWN:
 			if turn != .WHITE
 			{
 				return
 			}
-		case .BLACK_PAWN, .BLACK_ROOK, .BLACK_KNIGHT, .BLACK_BISHOP, .BLACK_KING, .BLACK_QUEEN:
+
+		case .BLACK_ROOK..=.BLACK_PAWN:
+
 			if turn != .BLACK
 			{
 				return
@@ -284,15 +345,57 @@ init_board_state_from_fen :: proc(fen:string)
 		case .FULL_MOVES:
 			//ditto
 		}
-		
 	}
-
 }
-get_legal_moves :: proc()
+
+search_for_checks :: proc()
+{
+	for r in 0..<8
+	{
+		for f in 0..<8
+		{
+			#partial switch Piece(board_state[r][f])
+			{
+			case .BLACK_ROOK..=.BLACK_PAWN:
+				if turn == .WHITE
+				{
+					search_legal_moves_from_piece(i8(r), i8(f), Piece(board_state[r][f]))
+					
+				}
+
+			case .WHITE_ROOK..=.WHITE_PAWN:
+				if turn == .BLACK
+				{
+					search_legal_moves_from_piece(i8(r), i8(f), Piece(board_state[r][f]))
+				}
+			}
+		}
+	}
+}
+
+set_legal_moves :: proc()
 {
 	rank := selected_piece[.RANK]
 	file := selected_piece[.FILE]
 	piece := Piece(selected_piece[.PIECE])
+	
+	search_for_checks()	
+
+	//See legal moves for desired piece
+	search_legal_moves_from_piece(rank, file, piece)
+	/* for all pieces
+	   check if attacking king
+	   if so
+	   do check (only legal moves remove check)
+	   otherwise
+	   continue as normal
+	   */
+}
+
+search_legal_moves_from_piece :: proc(rank, file: i8, piece: Piece)
+{
+	
+	//Reset legal moves
 	for rank in 0..<8
 	{
 		for file in 0..<8
@@ -301,69 +404,70 @@ get_legal_moves :: proc()
 		}
 	}
 
+	//Check moves for each piece
 	#partial switch piece
 	{
 	case .WHITE_PAWN, .BLACK_PAWN: 
 		starting_rank: i8
+		dir: i8
 		if piece == .WHITE_PAWN
 		{
+			dir = 1
 			starting_rank = 1
 		}
 		else 
 		{
+			dir = -1
 			starting_rank = 6
 		}
 
 		if file != 7
 		{
 			// Captures
-			if board_state[rank + i8(turn)][file + 1] != i8(Piece.NONE)
+			if board_state[rank + dir][file + 1] != i8(Piece.NONE) 
 			{
-				legal_moves[rank + i8(turn)][file + 1] = true
+				legal_moves[rank + dir][file + 1] = true
 			}
 			// En passant
-			if en_passant[rank + i8(turn)][file + 1] == true 
+			if en_passant[rank + dir][file + 1] == true 
 			{
-				legal_moves[rank + i8(turn)][file + 1] = true
+				legal_moves[rank + dir][file + 1] = true
 			}
 
 		}
 		if file != 0
 		{
 			// Captures
-			if board_state[rank + i8(turn)][file - 1] != i8(Piece.NONE)
+			if board_state[rank + dir][file - 1] != i8(Piece.NONE)
 			{
-				legal_moves[rank + i8(turn)][file - 1] = true
+				legal_moves[rank + dir][file - 1] = true
 			}
 			// En passant
-			if en_passant[rank + i8(turn)][file - 1] == true
+			if en_passant[rank + dir][file - 1] == true
 			{
-				legal_moves[rank + i8(turn)][file - 1] = true
+				legal_moves[rank + dir][file - 1] = true
 			}
 		}
-
-		// !! Promotion
+		
 
 		// Unobstructed movement
-		if board_state[rank + i8(turn)][file] == i8(Piece.NONE)
+		if board_state[rank + dir][file] == i8(Piece.NONE)
 		{
-			legal_moves[rank + i8(turn)][file] = true
+			legal_moves[rank + dir][file] = true
 		}
 
 		if rank == starting_rank
 		{
-			if board_state[rank + (2 * i8(turn))][file] == i8(Piece.NONE)
+			if board_state[rank + (2 * dir)][file] == i8(Piece.NONE) 
 			{
-				legal_moves[rank + (2 * i8(turn))][file] = true	
+				legal_moves[rank + (2 * dir)][file] = true	
 			}
 		}
 
 	case .WHITE_ROOK..=.WHITE_KING, .BLACK_ROOK..=.BLACK_KING: // All pieces but pawns
 		for direction in 0..<8
 		{
-			// !! allow captures
 			hit_invalid_square := false
-//			hit_piece := false
 			index := i8(0)
 			for hit_invalid_square == false 
 			{
@@ -460,13 +564,15 @@ get_legal_moves :: proc()
 						new_file = file - 1
 					}
 				}
-
+				
+				//Bounds checking
 				if new_rank >= 0  &&
 					new_rank <= 7 &&
 					new_file >= 0 &&
 					new_file <= 7 
 				{
-					#partial switch Piece(board_state[new_rank][new_file])
+					search_square := Piece(board_state[new_rank][new_file])
+					#partial switch search_square
 					{
 					case .NONE:
  						#partial switch piece
@@ -480,23 +586,49 @@ get_legal_moves :: proc()
 							legal_moves[new_rank][new_file] = true
 						}
 					case .WHITE_ROOK..=.WHITE_PAWN: 
+						//Check if king is in check
+ 						#partial switch piece
+						{
+						case .BLACK_ROOK..=.BLACK_PAWN:
+							if search_square == .WHITE_KING
+							{
+								white_king_piece[.RANK] = new_rank
+								white_king_piece[.FILE] = new_file
+								white_checked = true
+							}
+						}
+
 						if turn == .WHITE
 						{
+							//Hit own piece
 							hit_invalid_square = true
 						}
 						else
-						{
+						{	//Hit enemy piece
+							
 							hit_invalid_square = true
 							legal_moves[new_rank][new_file] = true
 						}
 
 					case .BLACK_ROOK..=.BLACK_PAWN: 
-						if turn == .BLACK
+						//Check if king is in check
+ 						#partial switch piece
 						{
+						case .WHITE_ROOK..=.WHITE_PAWN:
+							if search_square == .BLACK_KING
+							{
+								black_king_piece[.RANK] = new_rank
+								black_king_piece[.FILE] = new_file
+								black_checked = true
+							}
+						}
+
+						if turn == .BLACK
+						{	//Hit own piece
 							hit_invalid_square = true
 						}
 						else
-						{
+						{	//Hit enemy piece
 							hit_invalid_square = true
 							legal_moves[new_rank][new_file] = true
 						}
@@ -550,20 +682,19 @@ get_texture :: proc(piece: i8) -> rl.Texture
 init_piece_textures :: proc(piece_set: string) 
 {
 	path := "./assets/pieces/"
-	// !! Use path + piece set to load 
-	white_pawn_image := rl.LoadImage("./assets/pieces/white_pawn.png")
-	white_knight_image := rl.LoadImage("./assets/pieces/white_knight.png")
-	white_bishop_image := rl.LoadImage("./assets/pieces/white_bishop.png")
-	white_king_image := rl.LoadImage("./assets/pieces/white_king.png")
-	white_queen_image := rl.LoadImage("./assets/pieces/white_queen.png")
-	white_rook_image := rl.LoadImage("./assets/pieces/white_rook.png")
-	black_pawn_image := rl.LoadImage("./assets/pieces/black_pawn.png")
-	black_knight_image := rl.LoadImage("./assets/pieces/black_knight.png")
-	black_bishop_image := rl.LoadImage("./assets/pieces/black_bishop.png")
-	black_king_image := rl.LoadImage("./assets/pieces/black_king.png")
-	black_queen_image := rl.LoadImage("./assets/pieces/black_queen.png")
-	black_rook_image := rl.LoadImage("./assets/pieces/black_rook.png")
-	gray_dot_image := rl.LoadImage("./assets/pieces/gray_dot.png")
+	white_pawn_image := rl.LoadImage(string_to_cstring(path, "white_pawn.png"))
+	white_knight_image := rl.LoadImage(string_to_cstring(path, "white_knight.png"))
+	white_bishop_image := rl.LoadImage(string_to_cstring(path, "white_bishop.png"))
+	white_king_image := rl.LoadImage(string_to_cstring(path, "white_king.png"))
+	white_queen_image := rl.LoadImage(string_to_cstring(path, "white_queen.png"))
+	white_rook_image := rl.LoadImage(string_to_cstring(path, "white_rook.png"))
+	black_pawn_image := rl.LoadImage(string_to_cstring(path, "black_pawn.png"))
+	black_knight_image := rl.LoadImage(string_to_cstring(path, "black_knight.png"))
+	black_bishop_image := rl.LoadImage(string_to_cstring(path, "black_bishop.png"))
+	black_king_image := rl.LoadImage(string_to_cstring(path, "black_king.png"))
+	black_queen_image := rl.LoadImage(string_to_cstring(path, "black_queen.png"))
+	black_rook_image := rl.LoadImage(string_to_cstring(path, "black_rook.png"))
+	gray_dot_image := rl.LoadImage(string_to_cstring(path, "gray_dot.png"))
 
 	white_pawn_texture = rl.LoadTextureFromImage(white_pawn_image)
 	white_knight_texture = rl.LoadTextureFromImage(white_knight_image)
@@ -578,8 +709,17 @@ init_piece_textures :: proc(piece_set: string)
 	black_queen_texture = rl.LoadTextureFromImage(black_queen_image)
 	black_rook_texture = rl.LoadTextureFromImage(black_rook_image)
 	gray_dot_texture = rl.LoadTextureFromImage(gray_dot_image)
+
+	free_all(context.temp_allocator)
 }
 
+string_to_cstring :: proc(str: ..string) -> cstring
+{
+	joined_str := strings.join(str, "")
+	cstr := strings.clone_to_cstring(joined_str)
+	return cstr
+
+}
 to_string :: proc(v: any) -> string
 {
 	str := fmt.tprint(v)
@@ -588,8 +728,7 @@ to_string :: proc(v: any) -> string
 
 draw_debug :: proc(str: ..string)
 {
-	joined_str := strings.join(str, "")
-	joined_cstr := strings.clone_to_cstring(joined_str)
+	joined_cstr := string_to_cstring(..str)
 	rl.DrawText(joined_cstr, debug_x, debug_y, i32(FONT_SIZE * scale), rl.BLACK)
 	debug_y = debug_y + line_break
 }

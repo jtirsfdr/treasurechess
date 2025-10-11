@@ -81,6 +81,8 @@ gray_dot_texture: rl.Texture
 
 board_size: i32
 square_size: i32	
+white_checked := false
+black_checked := false
 scale := 1 //dpi scaling
 selected_piece: [SelectedPieceLabel]i8
 board_state: [8][8]i8
@@ -88,7 +90,8 @@ legal_moves: [8][8]bool
 en_passant: [8][8]bool
 turn: Turn
 font: rl.Font
-
+white_king_piece: [SelectedPieceLabel]i8
+black_king_piece: [SelectedPieceLabel]i8
 debug_x: i32
 debug_y: i32
 line_break: i32
